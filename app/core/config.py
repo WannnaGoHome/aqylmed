@@ -17,8 +17,8 @@ DEFAULT_STT_PRICES_PER_MINUTE: dict[str, float] = {
 
 # (input, output) USD за 1 млн токенов. Для thinking-моделей токены рассуждений входят в output.
 DEFAULT_LLM_PRICES_PER_MILLION: dict[str, tuple[float, float]] = {
-    "gemini-3.5-flash": (1.50, 9.00),
-    "gemini-3.5-flash-lite": (0.30, 2.50),
+    "gemini-3.8-flash": (1.50, 9.00),
+    "gemini-3.8-flash-lite": (0.30, 2.50),
     "gemini-3.1-flash-lite": (0.25, 1.50),
     "gemini-2.5-flash": (0.30, 2.50),
 }
@@ -70,7 +70,7 @@ class Settings(BaseSettings):
 
     # --- Языковая модель ---
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-3.5-flash"
+    gemini_model: str = "gemini-3.8-flash"
     llm_max_attempts: int = 3
 
     # --- Расходы ---

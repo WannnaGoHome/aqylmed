@@ -116,7 +116,7 @@ GOOD = json.dumps({"medical_document": {"complaints": None, "missing_information
 
 
 def test_gemini_parses_tolerates_nulls_and_counts_thinking_tokens():
-    svc = GeminiAIService(client=FakeGeminiClient(["```json\n" + GOOD + "\n```"]), model="gemini-3.5-flash")
+    svc = GeminiAIService(client=FakeGeminiClient(["```json\n" + GOOD + "\n```"]), model="gemini-3.8-flash")
     out, usage = svc.generate_consultation_output("Врач: привет")
     assert out.medical_document.complaints == "" and out.medical_document.missing_information == ["а", "б"]
     assert (usage.input_tokens, usage.output_tokens) == (100, 50)

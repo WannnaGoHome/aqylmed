@@ -232,7 +232,8 @@ def check_config():
         try:
             from google import genai
 
-            genai.Client(api_key=settings.gemini_api_key).models.get(model=settings.gemini_model)
+            with genai.Client(api_key=settings.gemini_api_key) as client:
+                client.models.get(model=settings.gemini_model)
             line(True, f"модель Gemini доступна: {settings.gemini_model}")
         except Exception as exc:
             line(False, f"модель Gemini «{settings.gemini_model}» недоступна ({type(exc).__name__}). "

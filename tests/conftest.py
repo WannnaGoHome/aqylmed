@@ -53,7 +53,7 @@ class FakeAI:
             role_separated_text="Врач: Здравствуйте, что беспокоит?\nПациент: Кашель три дня, температура 38,5.",
             speaker_roles={"SPEAKER_00": "doctor", "SPEAKER_01": "patient"},
             uncertain_segments=["неразборчиво на 00:12"], processing_notes=["исправлено: лод -> температура"],
-        ), LLMUsage("gemini-3.5-flash", 2000, 400)
+        ), LLMUsage("gemini-3.8-flash", 2000, 400)
 
     def generate_consultation_output(self, dialogue_text):
         self.output_calls += 1
@@ -70,7 +70,7 @@ class FakeAI:
                 missing_information=["Аллергии не уточнены"],
             ),
             patient_memo=PatientMemoDraft(memo_text="1. Пить больше жидкости\n2. Повторный визит при ухудшении"),
-        ), LLMUsage("gemini-3.5-flash", 3000, 800)
+        ), LLMUsage("gemini-3.8-flash", 3000, 800)
 
 
 class FakeSTT:

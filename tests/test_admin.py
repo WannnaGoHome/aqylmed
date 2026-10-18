@@ -29,10 +29,10 @@ def test_cannot_remove_last_admin(client, admin):
 def test_usage_summary(client, doctor, admin):
     client.post("/api/consultations/text", json=TEXT_PAYLOAD, headers=doctor)
     s = client.get("/api/admin/usage", headers=admin).json()
-    # gemini-3.5-flash: 3000 in * 1.5 + 800 out * 9.0 = 0.0117 $
+    # gemini-3.8-flash: 3000 in * 1.5 + 800 out * 9.0 = 0.0117 $
     assert abs(s["total_cost_usd"] - 0.0117) < 1e-6
     assert s["consultations_processed"] == 1 and s["budget_used_percent"] is None
-    assert s["by_model"][0]["model"] == "gemini-3.5-flash" and len(s["by_day"]) == 1
+    assert s["by_model"][0]["model"] == "gemini-3.8-flash" and len(s["by_day"]) == 1
     assert client.get("/api/admin/usage?month=2020-01", headers=admin).json()["total_cost_usd"] == 0
     assert client.get("/api/admin/usage?month=bad", headers=admin).status_code == 422
 
