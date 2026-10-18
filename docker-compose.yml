@@ -1,0 +1,38 @@
+# Запуск: cp .env.example .env  (заполните ключи, SECRET_KEY, BOOTSTRAP_ADMIN_*, POSTGRES_PASSWORD)
+#         docker compose up -d --build
+# С диаризацией: docker compose build --build-arg WITH_AUDIO=1
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aqylmed
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD в .env}
+      POSTGRES_DB: aqylmed_ai_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aqylmed -d aqylmed_ai_db"]
+      interval: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://aqylmed:${POSTGRES_PASSWORD}@db:5432/aqylmed_ai_db
+      ENVIRONMENT: production
+    ports:
+      - "127.0.0.1:8000:8000"   # наружу — только через HTTPS-прокси (Caddy/nginx)
+    volumes:
+      - audio:/srv/storage
+      - hfcache:/home/aqyl/.cache/huggingface
+
+volumes:
+  pgdata:
+  audio:
+  hfcache:

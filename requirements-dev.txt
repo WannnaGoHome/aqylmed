@@ -1,0 +1,3 @@
+-r requirements.txt
+pytest>=8
+pgserver>=0.1.4   # необязательно: встроенный PostgreSQL для прогона тестов на настоящей БД

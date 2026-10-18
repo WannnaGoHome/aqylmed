@@ -1,0 +1,21 @@
+# Секреты
+.env
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+.pytest_cache/
+
+# Аудио и данные пациентов
+storage/
+examples_audio/
+*.mp3
+*.wav
+*.m4a
+*.flac
+
+# Базы данных (если есть локальные)
+*.sqlite3
+*.db

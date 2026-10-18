@@ -1,0 +1,21 @@
+# Основное приложение (веб-API, CLI, текстовый режим, STT через API).
+# Версии совпадают с теми, на которых проект тестировался.
+fastapi==0.136.3
+uvicorn==0.48.0
+SQLAlchemy==2.0.50
+alembic==1.18.4
+psycopg2-binary==2.9.12
+pydantic==2.13.4
+pydantic-settings==2.14.1
+python-dotenv==1.2.2
+python-multipart==0.0.32
+PyJWT==2.7.0
+python-docx==1.2.0
+typer==0.25.1
+rich==15.0.0
+httpx==0.28.1
+groq==1.4.0
+openai==3.35.1
+google-genai==2.7.0
+soundfile==0.13.1
+numpy>=2.0,<3
