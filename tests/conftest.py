@@ -55,7 +55,8 @@ class FakeAI:
             uncertain_segments=["неразборчиво на 00:12"], processing_notes=["исправлено: лод -> температура"],
         ), LLMUsage("gemini-3.8-flash", 2000, 400)
 
-    def generate_consultation_output(self, dialogue_text):
+    def generate_consultation_output(self, dialogue_text, *, document_type="initial"):
+        self.last_document_type = document_type
         self.output_calls += 1
         self.last_dialogue = dialogue_text
         if self.fail_next:

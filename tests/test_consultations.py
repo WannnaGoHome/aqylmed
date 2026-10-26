@@ -43,6 +43,16 @@ def test_admin_sees_all(client, doctor, admin):
     assert client.get("/api/consultations", headers=admin).json()["total"] == 1
 
 
+def select_code(client, headers, cid):
+    from app.models.medical_catalog import Icd10Code
+    with SessionLocal() as db:
+        if not db.get(Icd10Code, "J06.9"):
+            db.add(Icd10Code(code="J06.9", name_ru="Тестовый код"))
+            db.commit()
+    assert client.put(f"/api/consultations/{cid}/document", headers=headers,
+                      json={"diagnosis_code": "J06.9"}).status_code == 200
+
+
 def test_edit_confirm_lock_reopen(client, doctor):
     cid = create_text(client, doctor)
     edited = client.put(f"/api/consultations/{cid}/document", headers=doctor,
@@ -52,6 +62,7 @@ def test_edit_confirm_lock_reopen(client, doctor):
     assert doc["diagnosis"] == "ОРВИ" and doc["missing_information"] == ["a", "b"] and doc["edited_at"]
     assert doc["complaints"] == "Кашель"  # неуказанные поля не затираются
 
+    select_code(client, doctor, cid)
     confirmed = client.post(f"/api/consultations/{cid}/confirm", headers=doctor).json()
     assert confirmed["status"] == "confirmed" and confirmed["confirmed_by"] == "Петрова А.К."
     # после подтверждения правки и перегенерация запрещены
@@ -122,6 +133,7 @@ def test_export_docx_and_txt(client, doctor):
     assert "ЧЕРНОВИК" in text and "Иванов И.И." in text and "Кашель" in text
     txt = client.get(f"/api/consultations/{cid}/export?format=txt", headers=doctor)
     assert "ЧЕРНОВИК" in txt.text
+    select_code(client, doctor, cid)
     client.post(f"/api/consultations/{cid}/confirm", headers=doctor)
     assert "Подтверждено врачом: Петрова А.К." in client.get(f"/api/consultations/{cid}/export?format=txt", headers=doctor).text
     assert client.get(f"/api/consultations/{cid}/export?format=exe", headers=doctor).status_code == 422
@@ -193,6 +205,7 @@ def test_audit_trail_has_no_patient_data(client, doctor, admin):
     cid = create_text(client, doctor)
     client.get(f"/api/consultations/{cid}", headers=doctor)
     client.get(f"/api/consultations/{cid}/export", headers=doctor)
+    select_code(client, doctor, cid)
     client.post(f"/api/consultations/{cid}/confirm", headers=doctor)
     log = client.get("/api/admin/audit?limit=200", headers=admin).json()
     actions = {i["action"] for i in log["items"]}

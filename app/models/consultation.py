@@ -34,6 +34,9 @@ class Consultation(Base):
 
     status: Mapped[str] = mapped_column(String(50), default=ConsultationStatus.PROCESSING)
     source: Mapped[str] = mapped_column(String(20), default=ConsultationSource.TEXT)
+    document_type: Mapped[str] = mapped_column(String(30), default="initial")
+    template_fields_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    output_locale: Mapped[str | None] = mapped_column(String(5), nullable=True)
     progress_stage: Mapped[str | None] = mapped_column(String(50), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 

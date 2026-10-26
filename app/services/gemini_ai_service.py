@@ -128,8 +128,11 @@ class GeminiAIService:
         )
         return self._generate_structured(system, contents, DialogueProcessingResult)
 
-    def generate_consultation_output(self, dialogue_text: str) -> tuple[ConsultationAIOutput, LLMUsage]:
+    def generate_consultation_output(self, dialogue_text: str, *, document_type: str = "initial") -> tuple[ConsultationAIOutput, LLMUsage]:
         system, contents = self._build(
             "consultation_output_prompt.txt", "{dialogue_text}", "dialogue", dialogue_text
         )
+        kind = {"initial": "первичного приёма", "examination": "осмотра", "discharge": "выписки"}[document_type]
+        system += f"\nСформируй документ {kind}. Используй только сведения из диалога. " \
+                      "Не выдумывай госпитализацию, обследования или исход лечения; отсутствующее укажи в missing_information."
         return self._generate_structured(system, contents, ConsultationAIOutput)

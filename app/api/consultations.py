@@ -1,4 +1,5 @@
 import logging
+import json
 import uuid
 from pathlib import Path
 
@@ -16,12 +17,14 @@ from app.core.database import get_db
 from app.core.errors import BudgetExceededError
 from app.core.timeutils import utcnow
 from app.models.consultation import ConsultationStatus
+from app.models.medical_catalog import Icd10Code
+from app.models.medical_catalog import MedicalDocumentTemplate
 from app.models.user import User
 from app.repositories.consultation_repository import ConsultationRepository
 from app.repositories.medical_document_repository import MedicalDocumentRepository
 from app.repositories.patient_memo_repository import PatientMemoRepository
 from app.schemas.api import (
-    ConsultationDetail, ConsultationList, ConsultationStatusOut, DialogueUpdate,
+    DocumentType, ConsultationDetail, ConsultationList, ConsultationStatusOut, DialogueUpdate,
     MedicalDocumentUpdate, PatientMemoUpdate, RegenerateRequest, TextConsultationCreate,
 )
 from app.services import export_service
@@ -80,6 +83,8 @@ def create_text_consultation(
         consultation_date=payload.consultation_date.strip(),
         dialogue_text=payload.dialogue_text, doctor_id=user.id,
     )
+    consultation.document_type = payload.document_type
+    db.commit()
     AuditService(db).log("consultation.create", user=user, entity_type="consultation",
                          entity_id=consultation.id, details={"source": "text"}, request=request)
     background.add_task(runner.run, consultation.id, "text")
@@ -93,6 +98,7 @@ async def create_audio_consultation(
     patient_name: str = Form(..., min_length=1, max_length=255),
     consultation_date: str = Form(..., min_length=1, max_length=50),
     consent_confirmed: bool = Form(...),
+    document_type: DocumentType = Form("initial"),
     file: UploadFile = File(...),
     user: User = Depends(get_current_user), db: Session = Depends(get_db),
     runner: ProcessingRunner = Depends(get_runner),
@@ -143,6 +149,8 @@ async def create_audio_consultation(
         consultation_date=consultation_date.strip(), audio_path=str(final_path),
         duration_seconds=duration, doctor_id=user.id,
     )
+    consultation.document_type = document_type
+    db.commit()
     AuditService(db).log("consultation.create", user=user, entity_type="consultation",
                          entity_id=consultation.id, details={"source": "audio", "patient_consent_confirmed": True},
                          request=request)
@@ -180,6 +188,17 @@ def update_document(
     if c.status != ConsultationStatus.DRAFT_CREATED or c.medical_document is None:
         raise _conflict("Заключение можно редактировать только в статусе «Черновик»")
     changes = payload.model_dump(exclude_unset=True)
+    code = changes.get("diagnosis_code", c.medical_document.diagnosis_code)
+    diagnosis = changes.get("diagnosis", c.medical_document.diagnosis)
+    code_entry = db.get(Icd10Code, code.upper()) if code else None
+    if code and (code_entry is None or not code_entry.is_active):
+        raise HTTPException(422, "Выберите действующий код МКБ-10 из справочника")
+    if (
+        (diagnosis or "").strip()
+        and db.query(Icd10Code).filter(Icd10Code.is_active.is_(True)).count()
+        and not code
+    ):
+        raise HTTPException(422, "Для диагноза обязательно укажите код МКБ-10")
     MedicalDocumentRepository(db).update_fields(c.medical_document, changes)
     AuditService(db).log("document.edit", user=user, entity_type="consultation", entity_id=c.id,
                          details={"fields": sorted(changes)}, request=request)
@@ -259,6 +278,11 @@ def confirm(
     c = get_consultation_or_404(db, consultation_id, user)
     if c.status != ConsultationStatus.DRAFT_CREATED or c.medical_document is None:
         raise _conflict("Подтвердить можно только готовый черновик")
+    if not (c.medical_document.diagnosis_code or "").strip():
+        raise HTTPException(422, "Для подтверждения обязательно выберите код МКБ-10 из справочника")
+    entry = db.get(Icd10Code, c.medical_document.diagnosis_code.upper()) if c.medical_document.diagnosis_code else None
+    if c.medical_document.diagnosis_code and (entry is None or not entry.is_active):
+        raise HTTPException(422, "Код МКБ-10 не найден в справочнике")
     c.status = ConsultationStatus.CONFIRMED
     c.confirmed_at = utcnow()
     c.confirmed_by_id = user.id
@@ -328,11 +352,13 @@ def export(
         raise _conflict("Заключение ещё не готово")
     AuditService(db).log("consultation.export", user=user, entity_type="consultation",
                          entity_id=c.id, details={"format": format}, request=request)
+    locale = c.output_locale or user.locale
+    field_labels = json.loads(c.template_fields_json or "{}")
     if format == "docx":
-        body = export_service.export_docx(c)
+        body = export_service.export_docx(c, locale, field_labels)
         media = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     else:
-        body = export_service.export_txt(c).encode("utf-8")
+        body = export_service.export_txt(c, locale, field_labels).encode("utf-8")
         media = "text/plain; charset=utf-8"
     return Response(body, media_type=media,
                     headers={"Content-Disposition": f'attachment; filename="consultation_{c.id}.{format}"'})

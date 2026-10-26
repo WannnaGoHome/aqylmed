@@ -1,3 +1,8 @@
+import hashlib
+import hmac
+import secrets
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
@@ -5,6 +10,8 @@ from app.api.deps import require_admin
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import hash_password, validate_password_strength
+from app.core.timeutils import utcnow
+from app.models.medical_catalog import MedicalSpecialty
 from app.models.user import User, UserRole
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.user_repository import UserRepository
@@ -15,8 +22,31 @@ from app.services.audio_utils import ffmpeg_available
 from app.services.audit_service import AuditService
 from app.services.retention_service import AudioRetentionService
 from app.services.usage_service import UsageService
+from app.services.email_service import EmailDeliveryError, send_email
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
+
+
+def _send_registration_confirmation(user: User, db: Session) -> None:
+    if not (settings.smtp_host and settings.smtp_from_email):
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Для подтверждения email сначала настройте SMTP")
+    token = secrets.token_urlsafe(32)
+    user.email_verified = False
+    user.email_verification_hash = hmac.new(
+        settings.jwt_secret.encode(), token.encode(), hashlib.sha256
+    ).hexdigest()
+    user.email_verification_expires_at = utcnow() + timedelta(hours=24)
+    db.commit()
+    base_url = settings.password_reset_url.split("#/")[0].rstrip("/")
+    try:
+        send_email(
+            recipient=user.email,
+            subject="Подтверждение учётной записи AqylMed",
+            body=f"Подтвердите регистрацию в течение 24 часов:\n"
+                 f"{base_url}/#/verify-email?token={token}",
+        )
+    except EmailDeliveryError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
 
 
 @router.get("/users", response_model=list[UserOut])
@@ -39,13 +69,32 @@ def create_user(
         raise HTTPException(422, problem)
     if repo.get_by_email(payload.email):
         raise HTTPException(status.HTTP_409_CONFLICT, "Пользователь с таким email уже есть")
+    if payload.specialty_id is not None:
+        if db.get(MedicalSpecialty, payload.specialty_id) is None:
+            raise HTTPException(422, "Специальность не найдена")
+    if settings.email_verification_required and not (settings.smtp_host and settings.smtp_from_email):
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Для подтверждения email сначала настройте SMTP")
     user = repo.create(
         email=payload.email, full_name=payload.full_name,
         hashed_password=hash_password(payload.password), role=payload.role,
+        specialty_id=payload.specialty_id,
     )
+    if settings.email_verification_required:
+        _send_registration_confirmation(user, db)
     AuditService(db).log("user.create", user=admin, entity_type="user", entity_id=user.id,
                          details={"role": user.role}, request=request)
     return user
+
+
+@router.post("/users/{user_id}/verification", status_code=202)
+def resend_registration_confirmation(user_id: int, db: Session = Depends(get_db)):
+    user = UserRepository(db).get_by_id(user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Пользователь не найден")
+    if user.email_verified:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Email уже подтверждён")
+    _send_registration_confirmation(user, db)
+    return {"message": "Ссылка подтверждения отправлена повторно"}
 
 
 @router.patch("/users/{user_id}", response_model=UserOut)
@@ -61,6 +110,8 @@ def update_user(
 
     if "role" in changes and changes["role"] not in UserRole.ALL:
         raise HTTPException(422, "Недопустимая роль")
+    if changes.get("specialty_id") is not None and db.get(MedicalSpecialty, changes["specialty_id"]) is None:
+        raise HTTPException(422, "Специальность не найдена")
     loses_admin = user.role == UserRole.ADMIN and user.is_active and (
         changes.get("is_active") is False or changes.get("role", UserRole.ADMIN) != UserRole.ADMIN
     )
@@ -72,10 +123,24 @@ def update_user(
         if problem:
             raise HTTPException(422, problem)
         user.hashed_password = hash_password(changes["password"])
-    for field in ("full_name", "role", "is_active"):
+        user.password_reset_hash = None
+        user.password_reset_expires_at = None
+        user.two_factor_challenge_hash = None
+        user.two_factor_code_hash = None
+        user.two_factor_expires_at = None
+    for field in ("full_name", "role", "is_active", "specialty_id"):
         if field in changes and changes[field] is not None:
             setattr(user, field, changes[field])
+    if "specialty_id" in changes:
+        user.specialty_id = changes["specialty_id"]
     repo.save(user)
+    if changes.get("password") and settings.email_notifications_enabled:
+        try:
+            send_email(recipient=user.email, subject="Пароль AqylMed изменён",
+                       body="Администратор изменил пароль вашей учётной записи.")
+        except EmailDeliveryError:
+            import logging
+            logging.getLogger(__name__).exception("Password notification delivery failed for user_id=%s", user.id)
     AuditService(db).log(
         "user.update", user=admin, entity_type="user", entity_id=user.id,
         details={"fields": sorted(k for k in changes if k != "password") + (["password"] if "password" in changes else [])},
@@ -113,6 +178,10 @@ def system_info():
     """Состояние конфигурации без секретов — чтобы администратор видел, что подключено."""
     return {
         "environment": settings.environment,
+        "two_factor_enabled": settings.two_factor_enabled,
+        "email_verification_required": settings.email_verification_required,
+        "email_notifications_enabled": settings.email_notifications_enabled,
+        "smtp_configured": bool(settings.smtp_host and settings.smtp_from_email),
         "stt_provider": settings.stt_provider,
         "stt_model": settings.groq_stt_model if settings.stt_provider == "groq" else settings.openai_stt_model,
         "stt_key_configured": bool(settings.groq_api_key if settings.stt_provider == "groq" else settings.openai_api_key),

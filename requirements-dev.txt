@@ -1,3 +1,4 @@
 -r requirements.txt
 pytest>=8
-pgserver>=0.1.4   # необязательно: встроенный PostgreSQL для прогона тестов на настоящей БД
+# Необязательно: pip install pgserver (если поддерживается вашей версией Python).
+# Или задайте TEST_DATABASE_URL для отдельной тестовой PostgreSQL.

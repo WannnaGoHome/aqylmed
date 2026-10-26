@@ -20,6 +20,7 @@ class MedicalDocument(Base):
     symptoms_duration: Mapped[str | None] = mapped_column(Text, nullable=True)
     examination: Mapped[str | None] = mapped_column(Text, nullable=True)
     diagnosis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    diagnosis_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     treatment_plan: Mapped[str | None] = mapped_column(Text, nullable=True)
     recommendations: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Список, склеенный через "\n" (формат сохранён из этапа 1).

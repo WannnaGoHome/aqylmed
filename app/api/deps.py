@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import decode_access_token
+from app.core.security import decode_access_token, credential_fingerprint
+import hmac
 from app.models.consultation import Consultation
 from app.models.user import User, UserRole
 from app.repositories.consultation_repository import ConsultationRepository
@@ -30,7 +31,8 @@ def get_current_user(
     if not payload or not str(payload.get("sub", "")).isdigit():
         raise unauthorized
     user = UserRepository(db).get_by_id(int(payload["sub"]))
-    if user is None or not user.is_active:
+    if (user is None or not user.is_active or not user.email_verified
+            or not hmac.compare_digest(str(payload.get("credential", "")), credential_fingerprint(user.hashed_password))):
         raise unauthorized
     return user
 

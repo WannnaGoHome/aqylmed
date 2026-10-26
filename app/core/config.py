@@ -46,6 +46,18 @@ class Settings(BaseSettings):
     bootstrap_admin_email: str | None = None
     bootstrap_admin_password: str | None = None
     cors_origins: str = ""  # через запятую; пусто = только тот же origin
+    two_factor_enabled: bool = False
+    email_verification_required: bool = False
+    email_notifications_enabled: bool = False
+
+    # --- Почта (SMTP) ---
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str | None = None
+    smtp_starttls: bool = True
+    password_reset_url: str = "http://127.0.0.1:8000/#/reset"
 
     # --- Хранение аудио ---
     upload_dir: Path = BASE_DIR / "storage" / "audio"
@@ -57,7 +69,7 @@ class Settings(BaseSettings):
     stt_provider: str = "groq"  # groq | openai
     groq_api_key: str | None = None
     groq_stt_model: str = "whisper-large-v3"
-    groq_stt_language: str = "ru"  # пустая строка = автоопределение языка
+    groq_stt_language: str = ""  # пустая строка = автоопределение языка
     openai_api_key: str | None = None
     openai_stt_model: str = "gpt-4o-mini-transcribe"
     openai_stt_language: str = ""

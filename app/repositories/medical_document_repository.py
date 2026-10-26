@@ -10,6 +10,7 @@ _TEXT_FIELDS = (
     "complaints", "anamnesis", "symptoms_duration", "examination",
     "diagnosis", "treatment_plan", "recommendations",
 )
+_OPTIONAL_FIELDS = ("diagnosis_code",)
 
 
 class MedicalDocumentRepository:
@@ -37,6 +38,7 @@ class MedicalDocumentRepository:
 
         for field in _TEXT_FIELDS:
             setattr(document, field, getattr(draft, field))
+        document.diagnosis_code = None
         document.missing_information = "\n".join(draft.missing_information)
         document.ai_original_json = draft.model_dump_json()
         document.validation_warnings = json.dumps(warnings or [], ensure_ascii=False)
@@ -50,6 +52,9 @@ class MedicalDocumentRepository:
         for field in _TEXT_FIELDS:
             if field in changes and changes[field] is not None:
                 setattr(document, field, changes[field])
+        for field in _OPTIONAL_FIELDS:
+            if field in changes:
+                setattr(document, field, changes[field] or None)
         if changes.get("missing_information") is not None:
             items = [item.strip() for item in changes["missing_information"] if item.strip()]
             document.missing_information = "\n".join(items)

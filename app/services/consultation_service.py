@@ -22,6 +22,7 @@ from app.services.transcript_alignment_service import (
     UNKNOWN_SPEAKER, TranscriptAlignmentService, build_speaker_transcript,
 )
 from app.services.usage_service import UsageService
+from app.services.email_service import EmailDeliveryError, send_email
 from app.services.validation_service import validate_generated_output
 
 logger = logging.getLogger(__name__)
@@ -262,12 +263,26 @@ class ConsultationService:
             raise ProcessingError("Текст диалога пуст.")
 
         self._stage(consultation, "generating")
-        output, usage = self.ai_service.generate_consultation_output(dialogue)
+        output, usage = self.ai_service.generate_consultation_output(dialogue, document_type=consultation.document_type)
         self.usage.record_llm(consultation.id, self.ai_service.provider_name, usage)
 
+        from app.models.medical_catalog import MedicalDocumentTemplate
+        import json
+        locale = output.output_locale or (consultation.doctor.locale if consultation.doctor else "ru")
+        template = self.db.query(MedicalDocumentTemplate).filter_by(
+            specialty_id=consultation.doctor.specialty_id, locale=locale,
+            document_type=consultation.document_type,
+        ).first() if consultation.doctor and consultation.doctor.specialty_id else None
+        consultation.template_fields_json = json.dumps(
+            json.loads(template.fields_json) if template else {}, ensure_ascii=False
+        )
+        consultation.output_locale = locale
         warnings = validate_generated_output(dialogue, output)
         self.document_repository.create(consultation.id, output.medical_document, warnings)
         self.memo_repository.create(consultation.id, output.patient_memo)
+        if output.output_locale in {"ru", "kk", "en"}:
+            consultation.output_locale = output.output_locale
+            self.db.commit()
 
     def _finish(self, consultation: Consultation) -> None:
         consultation.confirmed_at = None
@@ -278,6 +293,8 @@ class ConsultationService:
         if settings.delete_audio_after_processing and consultation.audio_file \
                 and not consultation.audio_file.is_deleted:
             AudioRetentionService(self.db).delete_audio(consultation.audio_file)
+        self._notify_doctor(consultation, "Черновик AqylMed готов",
+                            f"Обработка приёма #{consultation.id} завершена. Откройте AqylMed, чтобы проверить черновик.")
 
     def _fail(self, consultation_id: int, exc: Exception) -> None:
         logger.exception("Обработка консультации %s не удалась", consultation_id)
@@ -287,3 +304,15 @@ class ConsultationService:
             self.consultation_repository.set_progress(
                 consultation, status=ConsultationStatus.FAILED, stage=None, error=user_facing_error(exc)
             )
+            self._notify_doctor(consultation, "Ошибка обработки AqylMed",
+                                f"Обработка приёма #{consultation.id} не завершилась. Проверьте его в AqylMed.")
+
+    @staticmethod
+    def _notify_doctor(consultation: Consultation, subject: str, body: str) -> None:
+        doctor = consultation.doctor
+        if not settings.email_notifications_enabled or doctor is None:
+            return
+        try:
+            send_email(recipient=doctor.email, subject=subject, body=body)
+        except EmailDeliveryError:
+            logger.exception("Не удалось отправить уведомление врачу user_id=%s", doctor.id)

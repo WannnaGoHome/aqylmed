@@ -31,12 +31,15 @@ class UserRepository:
             .count()
         )
 
-    def create(self, *, email: str, full_name: str, hashed_password: str, role: str) -> User:
+    def create(
+        self, *, email: str, full_name: str, hashed_password: str, role: str, specialty_id: int | None = None
+    ) -> User:
         user = User(
             email=self.normalize_email(email),
             full_name=full_name.strip(),
             hashed_password=hashed_password,
             role=role,
+            specialty_id=specialty_id,
         )
         self.db.add(user)
         self.db.commit()

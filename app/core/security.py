@@ -51,10 +51,15 @@ def validate_password_strength(password: str) -> str | None:
     return None
 
 
-def create_access_token(user_id: int, role: str) -> str:
+def credential_fingerprint(password_hash: str) -> str:
+    return hmac.new(settings.jwt_secret.encode(), password_hash.encode(), hashlib.sha256).hexdigest()
+
+
+def create_access_token(user_id: int, role: str, password_hash: str) -> str:
     now = utcnow()
     payload = {
         "sub": str(user_id),
+        "credential": credential_fingerprint(password_hash),
         "role": role,
         "iat": now,
         "exp": now + timedelta(minutes=settings.access_token_expire_minutes),

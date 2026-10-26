@@ -27,12 +27,16 @@ def detail(c: Consultation) -> ConsultationDetail:
     return ConsultationDetail(
         **summary(c).model_dump(),
         error_message=c.error_message,
+        output_locale=c.output_locale,
+        document_type=c.document_type,
+        template_fields=json.loads(c.template_fields_json or "{}"),
         dialogue_text=c.dialogue_text,
         transcript_notes=transcript.cleanup_notes if transcript else None,
         document=MedicalDocumentOut(
             complaints=doc.complaints or "", anamnesis=doc.anamnesis or "",
             symptoms_duration=doc.symptoms_duration or "", examination=doc.examination or "",
             diagnosis=doc.diagnosis or "", treatment_plan=doc.treatment_plan or "",
+            diagnosis_code=doc.diagnosis_code,
             recommendations=doc.recommendations or "",
             missing_information=[m for m in (doc.missing_information or "").splitlines() if m.strip()],
             validation_warnings=_loads_list(doc.validation_warnings),

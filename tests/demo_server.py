@@ -26,9 +26,9 @@ class SlowAI(FakeAI):
         time.sleep(DELAY)
         return super().process_dialogue(t)
 
-    def generate_consultation_output(self, d):
+    def generate_consultation_output(self, d, **kwargs):
         time.sleep(DELAY)
-        return super().generate_consultation_output(d)
+        return super().generate_consultation_output(d, **kwargs)
 
 
 class SlowSTT(FakeSTT):

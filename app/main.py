@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from app.api import admin, auth, consultations
+from app.api import admin, auth, catalog, consultations
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.security import hash_password
@@ -110,6 +110,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(consultations.router)
     app.include_router(admin.router)
+    app.include_router(catalog.router)
 
     if settings.static_dir.exists():
         app.mount("/", StaticFiles(directory=settings.static_dir, html=True), name="ui")

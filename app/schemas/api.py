@@ -1,5 +1,8 @@
 """Схемы HTTP API (вход/выход). Схемы вывода ИИ лежат в соседних файлах."""
 from datetime import datetime
+from typing import Literal
+
+DocumentType = Literal["initial", "examination", "discharge"]
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -10,6 +13,24 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class VerifyLoginCodeRequest(BaseModel):
+    challenge_id: str
+    code: str = Field(pattern=r"^\d{6}$")
+
+
+class PasswordResetRequest(BaseModel):
+    email: str
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
+
+
+class UserPreferencesUpdate(BaseModel):
+    locale: str = Field(pattern=r"^(ru|kk|en)$")
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -17,15 +38,20 @@ class UserOut(BaseModel):
     email: str
     full_name: str
     role: str
+    locale: str = "ru"
+    specialty_id: int | None = None
+    email_verified: bool = True
     is_active: bool
     created_at: datetime
     last_login_at: datetime | None = None
 
 
 class TokenResponse(BaseModel):
-    access_token: str
+    access_token: str | None = None
     token_type: str = "bearer"
     user: UserOut
+    requires_2fa: bool = False
+    challenge_id: str | None = None
 
 
 class ChangePasswordRequest(BaseModel):
@@ -38,6 +64,7 @@ class UserCreate(BaseModel):
     full_name: str = Field(min_length=2, max_length=255)
     password: str
     role: str = "doctor"
+    specialty_id: int | None = None
 
 
 class UserUpdate(BaseModel):
@@ -45,10 +72,12 @@ class UserUpdate(BaseModel):
     role: str | None = None
     is_active: bool | None = None
     password: str | None = None  # сброс пароля администратором
+    specialty_id: int | None = None
 
 
 # ---------- Консультации ----------
 class TextConsultationCreate(BaseModel):
+    document_type: DocumentType = "initial"
     patient_name: str = Field(min_length=1, max_length=255)
     consultation_date: str = Field(min_length=1, max_length=50)
     dialogue_text: str = Field(min_length=10)
@@ -61,6 +90,7 @@ class MedicalDocumentOut(BaseModel):
     symptoms_duration: str = ""
     examination: str = ""
     diagnosis: str = ""
+    diagnosis_code: str | None = None
     treatment_plan: str = ""
     recommendations: str = ""
     missing_information: list[str] = []
@@ -74,6 +104,7 @@ class MedicalDocumentUpdate(BaseModel):
     symptoms_duration: str | None = None
     examination: str | None = None
     diagnosis: str | None = None
+    diagnosis_code: str | None = None
     treatment_plan: str | None = None
     recommendations: str | None = None
     missing_information: list[str] | None = None
@@ -117,6 +148,9 @@ class ConsultationSummary(BaseModel):
 
 
 class ConsultationDetail(ConsultationSummary):
+    document_type: DocumentType = "initial"
+    template_fields: dict[str, str] = {}
+    output_locale: str | None = None
     error_message: str | None = None
     dialogue_text: str | None = None
     transcript_notes: str | None = None
@@ -187,3 +221,36 @@ class AuditLogList(BaseModel):
 
 class PurgeResult(BaseModel):
     deleted_files: int
+
+
+class Icd10EntryInput(BaseModel):
+    code: str = Field(min_length=1, max_length=10, pattern=r"^[A-Za-z0-9.]+$")
+    name_ru: str = Field(min_length=1, max_length=500)
+    name_kk: str = Field(default="", max_length=500)
+    name_en: str = Field(default="", max_length=500)
+
+
+class SpecialtyInput(BaseModel):
+    name_ru: str = Field(min_length=1, max_length=255)
+    name_kk: str = Field(default="", max_length=255)
+    name_en: str = Field(default="", max_length=255)
+
+
+class MedicalTemplateInput(BaseModel):
+    document_type: DocumentType = "initial"
+    locale: str = Field(pattern=r"^(ru|kk|en)$")
+    fields: dict[str, str]
+
+
+class MedicalSpecialtyOut(BaseModel):
+    id: int
+    name_ru: str
+    name_kk: str
+    name_en: str
+
+
+class MedicalTemplateOut(BaseModel):
+    document_type: DocumentType = "initial"
+    specialty_id: int
+    locale: str
+    fields: dict[str, str]

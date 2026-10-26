@@ -43,6 +43,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .nav a:hover { color: #fff; }
 .who { display: flex; align-items: center; gap: .75rem; font-size: .9rem; color: #c9d7db; }
 .who button { background: transparent; border: 1px solid #5d7480; color: #fff; padding: .25rem .7rem; border-radius: var(--radius); cursor: pointer; }
+.language-select { width: auto; padding: .25rem .4rem; border: 1px solid #5d7480; border-radius: var(--radius); background: var(--ink); color: #fff; }
+.icd-field { grid-column: 2; margin-top: .35rem; }
 .page { max-width: 1240px; margin: 0 auto; padding: 1.5rem; }
 .title-row { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.1rem; }
@@ -191,4 +193,23 @@ dialog .row { display: flex; justify-content: flex-end; gap: .6rem; margin-top: 
   .section.flag { background: none; }
   .memo { break-before: page; }
   textarea { border: 0 !important; padding: 0 !important; }
+}
+
+/* Список и действия на небольших экранах. */
+.pagination { display: flex; align-items: center; gap: .6rem; margin-top: 1rem; }
+.pagination [role="status"] { flex: 1; font-variant-numeric: tabular-nums; }
+[aria-busy="true"] { opacity: .65; }
+.recorder { flex-wrap: wrap; }
+@media (max-width: 960px) { .icd-field { grid-column: 1; } }
+@media (max-width: 600px) {
+  .page { padding: 1rem; }
+  .topbar { padding: .75rem 1rem; }
+  .nav { order: 3; width: 100%; flex-basis: 100%; overflow-x: auto; }
+  .nav a { white-space: nowrap; }
+  .who { margin-left: auto; flex-wrap: wrap; }
+  .toolbar input { max-width: none; }
+  .toolbar select { flex: 1; min-width: 0; }
+  .actionbar { padding-bottom: max(.75rem, env(safe-area-inset-bottom)); }
+  .actionbar .spacer { display: none; }
+  .actionbar .btn { flex-grow: 1; justify-content: center; }
 }
